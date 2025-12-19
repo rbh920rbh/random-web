@@ -20,6 +20,9 @@ class RandomTool {
     // 初始化DOM元素
     initElements() {
         this.listSelect = document.getElementById('listSelect');
+        this.moreActionsBtn = document.getElementById('moreActionsBtn');
+        this.actionsPanel = document.getElementById('actionsPanel');
+        this.moreActionsBtn.setAttribute('aria-expanded', 'false');
         this.newListBtn = document.getElementById('newListBtn');
         this.deleteListBtn = document.getElementById('deleteListBtn');
         this.currentListName = document.getElementById('currentListName');
@@ -37,6 +40,19 @@ class RandomTool {
 
     // 绑定事件
     bindEvents() {
+        this.moreActionsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleActionsPanel();
+        });
+        document.addEventListener('click', (e) => {
+            if (
+                this.actionsPanel.classList.contains('show') &&
+                !this.actionsPanel.contains(e.target) &&
+                !this.moreActionsBtn.contains(e.target)
+            ) {
+                this.closeActionsPanel();
+            }
+        });
         this.newListBtn.addEventListener('click', () => this.createNewList());
         this.deleteListBtn.addEventListener('click', () => this.deleteCurrentList());
         this.listSelect.addEventListener('change', () => this.selectList());
@@ -99,6 +115,7 @@ class RandomTool {
         const listName = prompt('请输入新列表名称：');
         if (!listName || listName.trim() === '') return;
 
+        this.closeActionsPanel();
         const listId = Date.now().toString();
         this.lists[listId] = {
             name: listName.trim(),
@@ -115,6 +132,7 @@ class RandomTool {
 
         if (!confirm(`确定要删除列表"${this.lists[this.currentListId].name}"吗？`)) return;
 
+        this.closeActionsPanel();
         delete this.lists[this.currentListId];
         this.saveLists();
         this.currentListId = null;
@@ -247,71 +265,202 @@ class RandomTool {
         this.drawBtn.classList.add('drawing');
 
         // 计算权重
-        let weightedItems = this.calculateWeightedItems(items);
+        const weightedItems = this.calculateWeightedItems(items);
 
-        // 直接确定最终结果并显示弹窗
-        setTimeout(() => {
-            const result = this.selectRandomItem(weightedItems);
-            this.showResultModal(result);
-            this.addToHistory(result);
-            this.isDrawing = false;
-        }, 200);
+        // 显示iOS风格滚轮
+        this.showWheelPicker(weightedItems);
     }
 
-    // 显示结果弹窗
-    showResultModal(result) {
-        // 创建弹窗
-        const modal = document.createElement('div');
-        modal.className = 'result-modal';
-        modal.innerHTML = `
-            <div class="modal-overlay"></div>
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>🎉 抽取结果 🎉</h3>
+    // 显示滚轮抽取动画
+    showWheelPicker(weightedItems) {
+        const finalResult = this.selectRandomItem(weightedItems);
+
+        const wheelContainer = document.createElement('div');
+        wheelContainer.className = 'wheel-picker';
+        wheelContainer.innerHTML = `
+            <div class="wheel-overlay"></div>
+            <div class="wheel-content">
+                <div class="wheel-body">
+                    <div class="wheel-track">
+                        <div class="wheel-items"></div>
+                    </div>
                 </div>
-                <div class="modal-body">
-                    <div class="result-text">${this.escapeHtml(result.text)}</div>
-                    <div class="result-weight">权重: ${result.weight}</div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-primary modal-close-btn">确定</button>
+                <div class="wheel-footer">
+                    <button class="wheel-confirm" disabled>确定</button>
                 </div>
             </div>
         `;
 
-        document.body.appendChild(modal);
+        document.body.appendChild(wheelContainer);
 
-        // 添加动画效果
-        setTimeout(() => {
-            modal.classList.add('show');
-        }, 10);
+        const wheelItems = wheelContainer.querySelector('.wheel-items');
+        const confirmBtn = wheelContainer.querySelector('.wheel-confirm');
+        const overlay = wheelContainer.querySelector('.wheel-overlay');
 
-        // 绑定关闭事件
-        const closeBtn = modal.querySelector('.modal-close-btn');
-        const overlay = modal.querySelector('.modal-overlay');
+        const itemHeight = 50;
+        const itemGap = 4;
+        const targetHeight = 50; // 中心行视觉高度
+        const rowHeight = targetHeight + itemGap;
 
-        const closeModal = () => {
-            modal.classList.remove('show');
+        const repeatCount = 12; // 更多条目制造更长滚动
+        const displayItems = [];
+        for (let i = 0; i < repeatCount; i++) {
+            weightedItems.forEach(item => displayItems.push(item));
+        }
+
+        displayItems.forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'wheel-item';
+            el.textContent = item.text;
+            el.dataset.itemId = item.id;
+            wheelItems.appendChild(el);
+        });
+
+        const baseLength = weightedItems.length;
+        const finalIndex = weightedItems.findIndex(item => item.id === finalResult.id);
+        const centerRepeat = Math.max(1, Math.floor(repeatCount / 2));
+        const targetIndex = centerRepeat * baseLength + finalIndex;
+        const extraLoops = 4; // 额外滚动圈数
+
+        const closeWheel = () => {
+            wheelContainer.classList.remove('show');
             setTimeout(() => {
-                document.body.removeChild(modal);
-            }, 300);
+                if (document.body.contains(wheelContainer)) {
+                    document.body.removeChild(wheelContainer);
+                }
+            }, 200);
+            this.drawBtn.textContent = '再次抽取';
+            this.drawBtn.disabled = false;
+            this.drawBtn.classList.remove('drawing');
+            this.isDrawing = false;
         };
 
-        closeBtn.addEventListener('click', closeModal);
-        overlay.addEventListener('click', closeModal);
+        const confirmResult = () => {
+            this.addToHistory(finalResult);
+            closeWheel();
+        };
 
-        // ESC键关闭
+        overlay.addEventListener('click', closeWheel);
+        confirmBtn.addEventListener('click', confirmResult);
         document.addEventListener('keydown', function escHandler(e) {
             if (e.key === 'Escape') {
-                closeModal();
+                closeWheel();
                 document.removeEventListener('keydown', escHandler);
             }
         });
 
-        // 恢复按钮状态
-        this.drawBtn.textContent = '再次抽取';
-        this.drawBtn.disabled = false;
-        this.drawBtn.classList.remove('drawing');
+        const containerHeight = 270;
+        const centerOffset = containerHeight / 2 - targetHeight / 2;
+        const loopDistance = rowHeight * baseLength * extraLoops;
+        const targetPosition = -(targetIndex * rowHeight) + centerOffset;
+        const startPosition = targetPosition + loopDistance;
+
+        const baseSpan = rowHeight * baseLength;
+        this.updateWheelDepth(
+            wheelItems,
+            startPosition,
+            rowHeight,
+            containerHeight,
+            itemHeight,
+            baseSpan
+        );
+
+        // 展示并开启动画
+        requestAnimationFrame(() => wheelContainer.classList.add('show'));
+        setTimeout(() => {
+            const animationOptions = {
+                startPosition,
+                targetPosition,
+                rowHeight,
+                containerHeight,
+                itemHeight,
+                baseSpan
+            };
+            this.startWheelAnimation(wheelItems, animationOptions, () => {
+                confirmBtn.disabled = false;
+                confirmBtn.focus();
+            });
+        }, 80);
+    }
+
+    // 滚轮动画
+    startWheelAnimation(wheelItems, options, onComplete) {
+        const { startPosition, targetPosition, rowHeight, containerHeight, itemHeight, baseSpan } = options;
+        const distance = targetPosition - startPosition;
+
+        let startTime = null;
+        const duration = 750; // 更快的滚动，接近1秒总时长
+
+        wheelItems.style.transition = 'none';
+        wheelItems.style.transform = `translateY(${startPosition}px)`;
+
+        const animate = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            const ease = 1 - Math.pow(1 - progress, 3);
+            const currentPosition = startPosition + distance * ease;
+
+            wheelItems.style.transform = `translateY(${currentPosition}px)`;
+            this.updateWheelDepth(
+                wheelItems,
+                currentPosition,
+                rowHeight,
+                containerHeight,
+                itemHeight,
+                baseSpan
+            );
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                wheelItems.style.transform = `translateY(${targetPosition}px)`;
+                this.updateWheelDepth(
+                    wheelItems,
+                    targetPosition,
+                    rowHeight,
+                    containerHeight,
+                    itemHeight,
+                    baseSpan
+                );
+                setTimeout(() => {
+                    wheelItems.style.transition = '';
+                }, 50);
+                if (onComplete) onComplete();
+            }
+        };
+
+        requestAnimationFrame(animate);
+    }
+
+    updateWheelDepth(wheelItems, currentPosition, rowHeight, containerHeight, itemHeight, baseSpan) {
+        const items = wheelItems.children;
+        const center = containerHeight / 2;
+        const maxDistance = containerHeight / 2;
+        const span = baseSpan;
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const itemTop = i * rowHeight + currentPosition;
+            let itemCenter = itemTop + itemHeight / 2;
+
+            if (span > 0) {
+                let relative = itemCenter - center;
+                relative = ((relative + span / 2) % span + span) % span - span / 2;
+                itemCenter = center + relative;
+            }
+
+            const distance = Math.min(Math.abs(itemCenter - center), maxDistance);
+            const ratio = distance / maxDistance;
+
+            // 使用更陡峭的缓和曲线使靠近中心的项更大更亮
+            const scale = 1 - Math.pow(ratio, 1.05) * 0.25; // 中心≈1.00，最远≈0.75
+            const opacity = 1 - Math.pow(ratio, 1.05) * 0.7;
+            const isCenter = ratio < 0.15;
+
+            item.style.transform = `scale(${scale})`;
+            item.style.opacity = opacity;
+            item.classList.toggle('wheel-item-active', isCenter);
+        }
     }
 
     calculateWeightedItems(items) {
@@ -360,6 +509,18 @@ class RandomTool {
     showResult(item) {
         // 不再需要这个方法，因为结果现在通过弹窗显示
         // 保留方法以防其他地方调用
+    }
+
+    toggleActionsPanel() {
+        const isOpen = this.actionsPanel.classList.toggle('show');
+        this.moreActionsBtn.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    closeActionsPanel() {
+        if (this.actionsPanel.classList.contains('show')) {
+            this.actionsPanel.classList.remove('show');
+            this.moreActionsBtn.setAttribute('aria-expanded', 'false');
+        }
     }
 
     // 历史记录
@@ -424,6 +585,7 @@ class RandomTool {
 
     // 数据导入导出
     exportData() {
+        this.closeActionsPanel();
         const data = {
             lists: this.lists,
             settings: this.loadSettings(),
@@ -447,6 +609,7 @@ class RandomTool {
     }
 
     triggerImport() {
+        this.closeActionsPanel();
         this.importDataInput.click();
     }
 
