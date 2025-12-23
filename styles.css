@@ -1,3 +1,17 @@
+.main-panels {
+    display: block;
+}
+
+.main-panels.hidden {
+    display: none;
+}
+.mainPanels {
+    display: block;
+}
+
+.mainPanels.hidden {
+    display: none;
+}
 /* 全局样式 */
 * {
     margin: 0;
@@ -80,6 +94,15 @@ h2 {
     background: #2c5282;
 }
 
+.btn-secondary {
+    background: #e2e8f0;
+    color: #2d3748;
+}
+
+.btn-secondary:hover {
+    background: #cbd5e0;
+}
+
 .btn-success {
     background: #38a169;
     color: white;
@@ -134,6 +157,19 @@ h2 {
 .list-select:focus {
     outline: none;
     border-color: #3182ce;
+}
+
+.empty-actions {
+    display: none;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.empty-actions .btn {
+    flex: 1;
+    justify-content: center;
 }
 
 .actions-panel {

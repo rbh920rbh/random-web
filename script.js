@@ -3,8 +3,9 @@
 class RandomTool {
     constructor() {
         this.lists = this.loadLists();
+        this.globalHistoryKey = '__global__';
         this.currentListId = this.loadCurrentListId();
-        this.history = [];
+        this.historyStore = this.loadHistoryStore();
         this.isDrawing = false;
 
         this.initElements();
@@ -14,15 +15,23 @@ class RandomTool {
             this.selectListById(this.currentListId);
         } else {
             this.updateUI();
+            this.renderHistory();
         }
     }
 
     // 初始化DOM元素
     initElements() {
+        this.listControls = document.querySelector('.list-controls');
+        this.dataControls = document.querySelector('.data-controls');
         this.listSelect = document.getElementById('listSelect');
+        this.emptyActions = document.getElementById('emptyActions');
+        this.emptyNewListBtn = document.getElementById('emptyNewListBtn');
+        this.emptyImportBtn = document.getElementById('emptyImportBtn');
         this.moreActionsBtn = document.getElementById('moreActionsBtn');
         this.actionsPanel = document.getElementById('actionsPanel');
         this.moreActionsBtn.setAttribute('aria-expanded', 'false');
+        this.mainPanels = document.getElementById('mainPanels');
+        this.container = document.querySelector('.container');
         this.newListBtn = document.getElementById('newListBtn');
         this.deleteListBtn = document.getElementById('deleteListBtn');
         this.currentListName = document.getElementById('currentListName');
@@ -53,6 +62,8 @@ class RandomTool {
                 this.closeActionsPanel();
             }
         });
+        this.emptyNewListBtn.addEventListener('click', () => this.createNewList());
+        this.emptyImportBtn.addEventListener('click', () => this.triggerImport());
         this.newListBtn.addEventListener('click', () => this.createNewList());
         this.deleteListBtn.addEventListener('click', () => this.deleteCurrentList());
         this.listSelect.addEventListener('change', () => this.selectList());
@@ -101,13 +112,36 @@ class RandomTool {
         localStorage.setItem('randomTool_settings', JSON.stringify(settings));
     }
 
-    loadHistory() {
+    loadHistoryStore() {
         const history = localStorage.getItem('randomTool_history');
-        this.history = history ? JSON.parse(history) : [];
+        if (!history) return {};
+        try {
+            const parsed = JSON.parse(history);
+            if (Array.isArray(parsed)) {
+                return { [this.globalHistoryKey]: parsed };
+            }
+            return parsed || {};
+        } catch (e) {
+            console.warn('History parse error', e);
+            return {};
+        }
     }
 
-    saveHistory() {
-        localStorage.setItem('randomTool_history', JSON.stringify(this.history));
+    saveHistoryStore() {
+        localStorage.setItem('randomTool_history', JSON.stringify(this.historyStore));
+    }
+
+    getCurrentHistory() {
+        if (this.currentListId && this.lists[this.currentListId]) {
+            if (!Array.isArray(this.historyStore[this.currentListId])) {
+                this.historyStore[this.currentListId] = [];
+            }
+            return this.historyStore[this.currentListId];
+        }
+        if (!Array.isArray(this.historyStore[this.globalHistoryKey])) {
+            this.historyStore[this.globalHistoryKey] = [];
+        }
+        return this.historyStore[this.globalHistoryKey];
     }
 
     // 列表管理
@@ -135,6 +169,8 @@ class RandomTool {
         this.closeActionsPanel();
         delete this.lists[this.currentListId];
         this.saveLists();
+        delete this.historyStore[this.currentListId];
+        this.saveHistoryStore();
         this.currentListId = null;
         this.saveCurrentListId(null);
         this.renderLists();
@@ -151,19 +187,52 @@ class RandomTool {
         this.saveCurrentListId(listId);
         this.listSelect.value = listId;
         this.updateUI();
-        this.loadHistory();
         this.renderHistory();
     }
 
     renderLists() {
-        this.listSelect.innerHTML = '<option value="">选择列表...</option>';
+        this.listSelect.innerHTML = '';
 
-        Object.keys(this.lists).forEach(listId => {
+        const listIds = Object.keys(this.lists);
+        listIds.forEach(listId => {
             const option = document.createElement('option');
             option.value = listId;
             option.textContent = this.lists[listId].name;
             this.listSelect.appendChild(option);
         });
+
+        const hasList = listIds.length > 0;
+        this.listSelect.style.display = hasList ? 'block' : 'none';
+        this.moreActionsBtn.style.display = hasList ? 'inline-flex' : 'none';
+        this.emptyActions.style.display = hasList ? 'none' : 'flex';
+        if (this.listControls) {
+            this.listControls.style.display = hasList ? 'flex' : 'none';
+        }
+        if (this.dataControls) {
+            this.dataControls.style.display = hasList ? 'block' : 'none';
+        }
+        this.listSelect.style.display = hasList ? 'block' : 'none';
+        this.moreActionsBtn.style.display = hasList ? 'inline-flex' : 'none';
+        this.emptyActions.style.display = hasList ? 'none' : 'flex';
+        this.mainPanels.classList.toggle('hidden', !hasList);
+        if (this.container) {
+            this.container.classList.toggle('empty-state', !hasList);
+        }
+
+        if (!hasList) {
+            this.closeActionsPanel();
+            this.currentListId = null;
+            this.saveCurrentListId(null);
+            this.updateUI();
+            this.renderHistory();
+            return;
+        }
+
+        if (!this.currentListId || !this.lists[this.currentListId]) {
+            this.selectListById(listIds[0]);
+        } else {
+            this.listSelect.value = this.currentListId;
+        }
     }
 
     // 列表项管理
@@ -335,19 +404,31 @@ class RandomTool {
             this.isDrawing = false;
         };
 
-        const confirmResult = () => {
+        let resultRecorded = false;
+        const recordResult = () => {
+            if (resultRecorded) return;
             this.addToHistory(finalResult);
+            resultRecorded = true;
+        };
+
+        const confirmResult = () => {
+            recordResult();
             closeWheel();
         };
 
-        overlay.addEventListener('click', closeWheel);
+        overlay.addEventListener('click', () => {
+            recordResult();
+            closeWheel();
+        });
         confirmBtn.addEventListener('click', confirmResult);
-        document.addEventListener('keydown', function escHandler(e) {
+        const escHandler = (e) => {
             if (e.key === 'Escape') {
+                recordResult();
                 closeWheel();
                 document.removeEventListener('keydown', escHandler);
             }
-        });
+        };
+        document.addEventListener('keydown', escHandler);
 
         const containerHeight = 270;
         const centerOffset = containerHeight / 2 - targetHeight / 2;
@@ -377,6 +458,7 @@ class RandomTool {
                 baseSpan
             };
             this.startWheelAnimation(wheelItems, animationOptions, () => {
+                recordResult();
                 confirmBtn.disabled = false;
                 confirmBtn.focus();
             });
@@ -467,11 +549,13 @@ class RandomTool {
         const settings = this.loadSettings();
         let weightedItems = [...items];
 
-        if (settings.weightReduction && this.history.length > 0) {
+        const history = this.getCurrentHistory();
+
+        if (settings.weightReduction && history.length > 0) {
             // 应用权重递减
             weightedItems = weightedItems.map(item => {
                 let adjustedWeight = item.weight;
-                const lastIndex = this.history.findIndex(h => h.itemId === item.id);
+                const lastIndex = history.findIndex(h => h.itemId === item.id);
 
                 if (lastIndex === 0) {
                     // 上次选中，权重减为1/3
@@ -525,30 +609,39 @@ class RandomTool {
 
     // 历史记录
     addToHistory(item) {
-        this.history.unshift({
+        if (!this.currentListId) return;
+
+        const history = this.getCurrentHistory();
+        history.unshift({
             itemId: item.id,
             text: item.text,
             timestamp: Date.now()
         });
 
         // 只保留最近3次
-        if (this.history.length > 3) {
-            this.history = this.history.slice(0, 3);
+        if (history.length > 3) {
+            history.length = 3;
         }
 
-        this.saveHistory();
+        if (this.currentListId && this.lists[this.currentListId]) {
+            this.historyStore[this.currentListId] = history;
+        } else {
+            this.historyStore[this.globalHistoryKey] = history;
+        }
+        this.saveHistoryStore();
         this.renderHistory();
     }
 
     renderHistory() {
         this.historyList.innerHTML = '';
 
-        if (this.history.length === 0) {
+        const history = this.getCurrentHistory();
+        if (!history.length) {
             this.historyList.innerHTML = '<div class="history-item">暂无历史记录</div>';
             return;
         }
 
-        this.history.forEach((record, index) => {
+        history.forEach((record, index) => {
             const historyElement = document.createElement('div');
             historyElement.className = 'history-item';
             historyElement.textContent = `${index + 1}. ${record.text}`;
@@ -581,6 +674,9 @@ class RandomTool {
         // 加载设置
         const settings = this.loadSettings();
         this.weightReductionToggle.checked = settings.weightReduction;
+
+        // 更新历史显示
+        this.renderHistory();
     }
 
     // 数据导入导出
@@ -590,7 +686,7 @@ class RandomTool {
             lists: this.lists,
             settings: this.loadSettings(),
             currentListId: this.currentListId,
-            history: this.history,
+            history: this.historyStore,
             exportTime: new Date().toISOString(),
             version: "1.0"
         };
@@ -640,9 +736,12 @@ class RandomTool {
                     localStorage.setItem('randomTool_settings', JSON.stringify(data.settings));
                 }
 
-                if (data.history && Array.isArray(data.history)) {
-                    this.history = data.history;
-                    this.saveHistory();
+                if (data.history && typeof data.history === 'object') {
+                    this.historyStore = data.history;
+                    this.saveHistoryStore();
+                } else {
+                    this.historyStore = {};
+                    this.saveHistoryStore();
                 }
 
                 // 重新初始化界面
@@ -651,6 +750,7 @@ class RandomTool {
                     this.selectListById(this.currentListId);
                 } else {
                     this.updateUI();
+                    this.renderHistory();
                 }
 
                 alert('数据导入成功！');

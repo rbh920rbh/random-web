@@ -14,10 +14,12 @@
         <div class="section">
             <h2>随机列表</h2>
             <div class="list-controls">
-                <select id="listSelect" class="list-select">
-                    <option value="">选择列表...</option>
-                </select>
+                <select id="listSelect" class="list-select"></select>
                 <button id="moreActionsBtn" class="btn btn-secondary">更多操作</button>
+            </div>
+            <div class="empty-actions" id="emptyActions">
+                <button id="emptyNewListBtn" class="btn btn-primary">新建列表</button>
+                <button id="emptyImportBtn" class="btn btn-secondary">导入数据</button>
             </div>
             <div class="data-controls">
                 <input type="file" id="importDataInput" accept=".json" style="display: none;">
@@ -30,39 +32,41 @@
             </div>
         </div>
 
-        <div class="center-action">
-            <button id="drawBtn" class="draw-btn" disabled>开始抽取</button>
-        </div>
-
-        <!-- 历史记录 -->
-        <div class="section">
-            <h2>历史记录</h2>
-            <div id="historyList" class="history-list">
-                <div class="history-item">暂无历史记录</div>
+        <div id="mainPanels" class="main-panels">
+            <div class="center-action">
+                <button id="drawBtn" class="draw-btn" disabled>开始抽取</button>
             </div>
-        </div>
 
-        <!-- 随机设置 -->
-        <div class="section">
-            <h2>随机设置</h2>
-            <div class="settings">
-                <label class="toggle">
-                    <input type="checkbox" id="weightReductionToggle">
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">启用权重递减（上次选中权重减为1/3，再上次减为2/3）</span>
-                </label>
+            <!-- 历史记录 -->
+            <div class="section">
+                <h2>历史记录</h2>
+                <div id="historyList" class="history-list">
+                    <div class="history-item">暂无历史记录</div>
+                </div>
             </div>
-        </div>
 
-        <!-- 列表项管理 -->
-        <div class="section">
-            <h2>列表项 <span id="currentListName"></span></h2>
-            <div class="item-controls">
-                <input type="text" id="newItemInput" placeholder="输入新项..." class="item-input">
-                <input type="number" id="newItemWeight" placeholder="权重" min="1" value="1" class="weight-input">
-                <button id="addItemBtn" class="btn btn-success">添加</button>
+            <!-- 随机设置 -->
+            <div class="section">
+                <h2>随机设置</h2>
+                <div class="settings">
+                    <label class="toggle">
+                        <input type="checkbox" id="weightReductionToggle">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-text">启用权重递减（上次选中权重减为1/3，再上次减为2/3）</span>
+                    </label>
+                </div>
             </div>
-            <div id="itemsList" class="items-list"></div>
+
+            <!-- 列表项管理 -->
+            <div class="section">
+                <h2>列表项 <span id="currentListName"></span></h2>
+                <div class="item-controls">
+                    <input type="text" id="newItemInput" placeholder="输入新项..." class="item-input">
+                    <input type="number" id="newItemWeight" placeholder="权重" min="1" value="1" class="weight-input">
+                    <button id="addItemBtn" class="btn btn-success">添加</button>
+                </div>
+                <div id="itemsList" class="items-list"></div>
+            </div>
         </div>
     </div>
 
